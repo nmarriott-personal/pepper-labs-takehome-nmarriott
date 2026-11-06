@@ -36,6 +36,34 @@ export default function CreateProductPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!name.trim()) {
+      setError("Product name is required");
+      return;
+    }
+
+    const seenSkus = new Set<string>();
+    for (const v of variants) {
+      if (!v.sku.trim()) {
+        setError("Variant SKU is required");
+        return;
+      }
+      if (seenSkus.has(v.sku.trim())) {
+        setError(`Duplicate SKU "${v.sku.trim()}"`);
+        return;
+      }
+      seenSkus.add(v.sku.trim());
+
+      if (Number(v.price) < 0 || Number.isNaN(Number(v.price))) {
+        setError("Price must be 0 or greater");
+        return;
+      }
+      if (Number(v.inventory) < 0 || Number.isNaN(Number(v.inventory))) {
+        setError("Inventory count must be 0 or greater");
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {

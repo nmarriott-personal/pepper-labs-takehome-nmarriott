@@ -119,15 +119,28 @@ router.post("/", (req, res) => {
       return res.status(400).json({ error: "At least one variant is required" });
     }
 
+    const seenSkus = new Set<string>();
     for (const v of variants) {
       if (!v.sku?.trim()) {
         return res.status(400).json({ error: "Variant SKU is required" });
       }
+      if (typeof v.price_cents === "number" && v.price_cents < 0) {
+        return res.status(400).json({ error: "Variant price must be >= 0" });
+      }
+      if (typeof v.inventory_count === "number" && v.inventory_count < 0) {
+        return res.status(400).json({ error: "Variant inventory count must be >= 0" });
+      }
+      const sku = v.sku.trim();
+      if (seenSkus.has(sku)) {
+        return res.status(400).json({ error: `Duplicate SKU "${sku}" in request` });
+      }
+      seenSkus.add(sku);
+
       const existing = db
         .prepare("SELECT id FROM variants WHERE sku = ?")
-        .get(v.sku.trim());
+        .get(sku);
       if (existing) {
-        return res.status(400).json({ error: `SKU "${v.sku}" already exists` });
+        return res.status(400).json({ error: `SKU "${sku}" already exists` });
       }
     }
 
@@ -193,6 +206,10 @@ router.put("/:id", (req, res) => {
 
     if (!existing) {
       return res.status(404).json({ error: "Product not found" });
+    }
+
+    if (name !== undefined && !name?.trim()) {
+      return res.status(400).json({ error: "Product name is required" });
     }
 
     db.prepare(

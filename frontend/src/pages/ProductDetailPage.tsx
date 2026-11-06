@@ -162,6 +162,14 @@ function VariantRow({
   const outOfStock = variant.inventory_count === 0;
 
   const handleSave = async () => {
+    if (Number(price) < 0 || Number.isNaN(Number(price))) {
+      alert("Price must be 0 or greater");
+      return;
+    }
+    if (Number(inventory) < 0 || Number.isNaN(Number(inventory))) {
+      alert("Inventory count must be 0 or greater");
+      return;
+    }
     setSaving(true);
     try {
       const res = await updateVariant(variant.id, {
