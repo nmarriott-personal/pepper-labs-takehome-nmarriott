@@ -107,16 +107,75 @@ router.get("/:id", (req, res) => {
  *   ]
  * }
  */
-router.post("/", (_req, res) => {
-  // TODO: Implement product creation
-  // 1. Validate required fields (name is required, variants array must have at least one entry)
-  // 2. Validate each variant (sku required + unique, price_cents >= 0, inventory_count >= 0)
-  // 3. Insert product and variants inside a transaction
-  // 4. Return the created product with its variants
-  res.status(501).json({
-    error: "Not implemented",
-    hint: "Implement product creation with validation and a database transaction",
-  });
+router.post("/", (req, res) => {
+  try {
+    const { name, description, category_id, status = "active", variants } = req.body;
+
+    if (!name?.trim()) {
+      return res.status(400).json({ error: "Product name is required" });
+    }
+
+    if (!Array.isArray(variants) || variants.length === 0) {
+      return res.status(400).json({ error: "At least one variant is required" });
+    }
+
+    for (const v of variants) {
+      if (!v.sku?.trim()) {
+        return res.status(400).json({ error: "Variant SKU is required" });
+      }
+      const existing = db
+        .prepare("SELECT id FROM variants WHERE sku = ?")
+        .get(v.sku.trim());
+      if (existing) {
+        return res.status(400).json({ error: `SKU "${v.sku}" already exists` });
+      }
+    }
+
+    const createProductTx = db.transaction(() => {
+      const result = db
+        .prepare(
+          `INSERT INTO products (name, description, category_id, status)
+           VALUES (?, ?, ?, ?)`
+        )
+        .run(name.trim(), description || null, category_id || null, status);
+
+      const productId = Number(result.lastInsertRowid);
+      const insertVariant = db.prepare(
+        `INSERT INTO variants (product_id, sku, name, price_cents, inventory_count)
+         VALUES (?, ?, ?, ?, ?)`
+      );
+
+      for (const v of variants) {
+        insertVariant.run(
+          productId,
+          v.sku.trim(),
+          v.name?.trim() || "Default",
+          Number(v.price_cents ?? 0),
+          Number(v.inventory_count ?? 0)
+        );
+      }
+
+      return productId;
+    });
+
+    const newId = createProductTx();
+    const product = db
+      .prepare(
+        `SELECT p.*, c.name AS category_name
+         FROM products p
+         LEFT JOIN categories c ON p.category_id = c.id
+         WHERE p.id = ?`
+      )
+      .get(newId) as Record<string, unknown>;
+    const createdVariants = db
+      .prepare("SELECT * FROM variants WHERE product_id = ?")
+      .all(newId);
+
+    res.status(201).json({ ...product, variants: createdVariants });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: message });
+  }
 });
 
 /**
