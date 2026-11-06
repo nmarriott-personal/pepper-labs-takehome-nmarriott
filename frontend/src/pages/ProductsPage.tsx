@@ -10,6 +10,8 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState<number | undefined>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const hasFilters = Boolean(search || categoryId);
 
@@ -23,10 +25,18 @@ export default function ProductsPage() {
 
   // Fetch products when filters change
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     fetchProducts({ search: search || undefined, category_id: categoryId })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load products");
+        return r.json();
+      })
       .then(setProducts)
-      .catch(() => {});
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : "Something went wrong")
+      )
+      .finally(() => setLoading(false));
   }, [search, categoryId]);
 
   const clearFilters = () => {
@@ -94,23 +104,38 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Result count */}
-      <p className="mb-4 text-sm text-muted-foreground">
-        {products.length} result{products.length !== 1 ? "s" : ""} found
-      </p>
-
-      {/* Product grid — 5 columns on xl like original CatalogGrid */}
-      {products.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-          <p className="text-lg font-medium">No products found</p>
-          <p className="mt-1 text-sm">Try adjusting your search or filters.</p>
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
+      ) : error ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center text-destructive">
+          <p className="font-medium">{error}</p>
+          <p className="mt-1 text-sm opacity-80">
+            Please check that the server is running and try again.
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {products.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        <>
+          {/* Result count */}
+          <p className="mb-4 text-sm text-muted-foreground">
+            {products.length} result{products.length !== 1 ? "s" : ""} found
+          </p>
+
+          {/* Product grid — 5 columns on xl like original CatalogGrid */}
+          {products.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+              <p className="text-lg font-medium">No products found</p>
+              <p className="mt-1 text-sm">Try adjusting your search or filters.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {products.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
