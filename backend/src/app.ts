@@ -16,7 +16,17 @@ app.use("/api/products", productsRouter);
 app.use("/api/categories", categoriesRouter);
 app.use("/api/variants", variantsRouter);
 
-// Note: No centralized error-handling middleware exists.
-// Unhandled errors may produce inconsistent response formats.
+// Centralized error-handling middleware
+app.use(
+  (
+    err: unknown,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    const message = err instanceof Error ? err.message : "Internal server error";
+    res.status(500).json({ error: message });
+  }
+);
 
 export default app;
